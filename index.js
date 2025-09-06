@@ -321,29 +321,14 @@
 
     const box = document.createElement('div');
     box.id = 'remove-ellipsis-ext__container';
-    box.style.display = 'inline-flex';
-    box.style.alignItems = 'center';
-    box.style.gap = '8px';
-    box.style.margin = '6px 0';
-    box.style.position = 'relative';
-    box.style.flexWrap = 'wrap';
 
     const btn = document.createElement('button');
+    btn.id = 'remove-ellipsis-ext__btn';
     btn.type = 'button';
-    btn.textContent = 'Remove …';
+    btn.textContent = '⌫';
     btn.title = 'ลบ .../.. / … จากบทสนทนาทั้งหมด (ปลอดภัยต่อ Markdown)';
-    btn.style.padding = '4px 8px';
-    btn.style.borderRadius = '4px';
-    btn.style.border = '1px solid #000';
-    btn.style.background = '#000';
-    btn.style.color = '#fff';
-    btn.style.cursor = 'pointer';
 
     const label = document.createElement('label');
-    label.style.display = 'inline-flex';
-    label.style.alignItems = 'center';
-    label.style.gap = '6px';
-    label.style.cursor = 'pointer';
     const chk = document.createElement('input');
     chk.type = 'checkbox';
     chk.checked = ensureSettings().autoRemove;
@@ -358,10 +343,6 @@
     label.append(chk, span);
 
     const label2 = document.createElement('label');
-    label2.style.display = 'inline-flex';
-    label2.style.alignItems = 'center';
-    label2.style.gap = '6px';
-    label2.style.cursor = 'pointer';
     const chk2 = document.createElement('input');
     chk2.type = 'checkbox';
     chk2.checked = ensureSettings().treatTwoDots;
@@ -375,10 +356,6 @@
     label2.append(chk2, span2);
 
     const label3 = document.createElement('label');
-    label3.style.display = 'inline-flex';
-    label3.style.alignItems = 'center';
-    label3.style.gap = '6px';
-    label3.style.cursor = 'pointer';
     const chk3 = document.createElement('input');
     chk3.type = 'checkbox';
     chk3.checked = ensureSettings().preserveSpace;
@@ -392,19 +369,7 @@
     label3.append(chk3, span3);
 
     const menu = document.createElement('div');
-    menu.style.display = 'none';
-    menu.style.flexDirection = 'column';
-    menu.style.position = 'absolute';
-    menu.style.top = '100%';
-    menu.style.right = '0';
-    menu.style.marginTop = '4px';
-    menu.style.padding = '6px';
-    menu.style.background = '#000';
-    menu.style.color = '#fff';
-    menu.style.border = '1px solid #000';
-    menu.style.borderRadius = '4px';
-    menu.style.gap = '4px';
-    menu.style.zIndex = '10000';
+    menu.id = 'remove-ellipsis-ext__menu';
     menu.append(label, label2, label3);
 
     box.append(btn, menu);
@@ -461,7 +426,8 @@
     if (mount === document.body) {
       box.style.position = 'fixed';
       box.style.bottom = '12px';
-      box.style.right = '12px';
+      box.style.left = '12px';
+      box.style.right = '';
       box.style.zIndex = '9999';
       document.body.appendChild(box);
     } else {
@@ -470,8 +436,6 @@
 
     function adaptUI() {
       const mobile = typeof window !== 'undefined' && window.innerWidth <= 600;
-      btn.style.width = mobile ? '100%' : '';
-      [label, label2, label3].forEach(el => { el.style.width = mobile ? '100%' : ''; });
       if (mount === document.body) {
         if (mobile) {
           box.style.left = '50%';
@@ -482,12 +446,12 @@
           menu.style.right = 'auto';
           menu.style.width = '100%';
         } else {
-          box.style.left = '';
-          box.style.right = '12px';
+          box.style.left = '12px';
+          box.style.right = '';
           box.style.transform = '';
           box.style.maxWidth = '';
-          menu.style.left = 'auto';
-          menu.style.right = '0';
+          menu.style.left = '0';
+          menu.style.right = 'auto';
           menu.style.width = '';
         }
       }

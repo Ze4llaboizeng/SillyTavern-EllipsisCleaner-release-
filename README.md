@@ -13,5 +13,9 @@ Extension สำหรับจัดการ "..." ที่โมเดลม
 
 ### วิธีติดตั้ง
 1. เปิด SillyTavern → Extensions → Install from URL  
-2. วางลิงก์ GitHub Repo นี้  
-3. เปิดใช้งาน Ellipsis Cleaner จากหน้า Extensions  
+2. วางลิงก์ GitHub Repo นี้
+3. เปิดใช้งาน Ellipsis Cleaner จากหน้า Extensions
+
+## Styling
+
+คุณสามารถปรับพื้นหลังของปอปอัพตัวเลือกได้ผ่านตัวแปร CSS `--remove-ellipsis-menu-bg` ในไฟล์ `style.css`
