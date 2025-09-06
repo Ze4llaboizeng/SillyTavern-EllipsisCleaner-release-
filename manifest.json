@@ -1,6 +1,6 @@
 {
   "display_name": "Remove Ellipsis(release)",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "author": "you",
   "description": "ลบ .../… จากข้อความของทั้งผู้ใช้และ AI พร้อมโหมดลบอัตโนมัติ",
   "js": "index.js",
