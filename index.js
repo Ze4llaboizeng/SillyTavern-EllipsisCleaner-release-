@@ -66,9 +66,9 @@
                 mask(/<code\b[^>]*>[\s\S]*?<\/code>/gi);
 
                 // 3. Structural Blocks
-                mask(/<p\b[^>]*>[\s\S]*?<\/p>/gi);
-                mask(/<div\b[^>]*>[\s\S]*?<\/div>/gi);
-                mask(/<span\b[^>]*>[\s\S]*?<\/span>/gi);
+                //mask(/<p\b[^>]*>[\s\S]*?<\/p>/gi);
+                //mask(/<div\b[^>]*>[\s\S]*?<\/div>/gi);
+                //mask(/<span\b[^>]*>[\s\S]*?<\/span>/gi);
 
                 // 4. Attributes
                 mask(/<[^>]+>/g);
