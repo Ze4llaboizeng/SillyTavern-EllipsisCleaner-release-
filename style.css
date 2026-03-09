@@ -1,161 +1,129 @@
 /* Remove Ellipsis - Extension Styling (Redesigned) */
 
 #remove-ellipsis-settings {
-    margin-top: 10px;
-    border-top: 1px solid var(--SmartThemeBorderColor, #444);
-    padding-top: 10px;
     width: 100%;
+    margin-bottom: 10px;
+    margin-top: 10px;
 }
 
-/* Custom Drawer Header */
-#remove-ellipsis-settings .rm-settings-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    padding: 12px 15px;
-    background-color: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.3));
-    border: 1px solid var(--SmartThemeBorderColor, #555);
-    border-radius: 6px;
-    transition: all 0.2s ease-in-out;
-    user-select: none;
-    color: var(--SmartThemeBodyColor, #e0e0e0);
-    font-weight: bold;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-#remove-ellipsis-settings .rm-settings-header:hover {
-    background-color: var(--SmartThemeButtonHoverColor, rgba(255, 255, 255, 0.1));
-    border-color: var(--SmartThemeBodyColor, #888);
-}
-
-#remove-ellipsis-settings .rm-label i {
-    margin-right: 8px;
-    opacity: 0.8;
-}
-
-/* Rotating Icon */
-#remove-ellipsis-settings .rm-icon {
+/* Fallback for drawer icon rotation (In case ST default doesn't catch it) */
+#remove-ellipsis-settings .inline-drawer-icon {
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-#remove-ellipsis-settings .rm-icon.down {
+#remove-ellipsis-settings .inline-drawer-icon.down {
     transform: rotate(180deg);
 }
 
-/* Drawer Content */
-#remove-ellipsis-settings .rm-settings-content {
-    background-color: rgba(0, 0, 0, 0.15);
-    border-radius: 0 0 6px 6px;
-    padding: 15px 10px 10px 10px;
-    margin-top: -4px;
-    color: var(--SmartThemeBodyColor, #ccc);
-    border: 1px solid var(--SmartThemeBorderColor, #555);
-    border-top: none;
-}
-
-/* Category Sections */
-#remove-ellipsis-settings .rm-section {
-    background-color: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin-bottom: 12px;
-}
-
-#remove-ellipsis-settings .rm-section-title {
-    font-size: 0.85em;
-    font-weight: bold;
-    text-transform: uppercase;
-    color: var(--SmartThemeBodyColor, #aaa);
-    opacity: 0.8;
-    margin-bottom: 10px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    display: flex;
-    align-items: center;
+/* Inner Settings Container */
+#remove-ellipsis-settings .rm-settings-container {
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 8px;
-    letter-spacing: 0.5px;
+    padding: 12px;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    border-radius: 8px;
+    margin-top: 5px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Danger Zone (For remove all dots) */
-#remove-ellipsis-settings .rm-danger-zone {
-    background-color: rgba(255, 60, 60, 0.1);
-    border-left: 3px solid #ff4444;
-    padding: 8px;
-    border-radius: 0 4px 4px 0;
-    margin-top: 8px;
-    transition: background-color 0.2s;
-}
-#remove-ellipsis-settings .rm-danger-zone:hover {
-    background-color: rgba(255, 60, 60, 0.15);
-}
-#remove-ellipsis-settings .rm-danger-zone span {
-    color: #ff8888;
-    font-weight: 600;
-}
-#remove-ellipsis-settings .rm-danger-zone i {
-    margin-right: 4px;
-}
-
-/* Labels & Checkboxes */
-#remove-ellipsis-settings .checkbox_label {
+/* Setting Items (Chic Card Design) */
+#remove-ellipsis-settings .rm-setting-item {
     display: flex;
     align-items: center;
-    margin-bottom: 8px;
+    padding: 10px 14px;
+    background: var(--SmartThemeButtonColor, rgba(255, 255, 255, 0.05));
+    border-radius: 6px;
+    transition: all 0.2s ease-in-out;
+    border: 1px solid transparent;
     cursor: pointer;
-    font-size: 0.95em;
-    transition: opacity 0.2s;
+    user-select: none;
 }
-#remove-ellipsis-settings .checkbox_label:hover {
-    opacity: 0.8;
+
+#remove-ellipsis-settings .rm-setting-item:hover {
+    background: var(--SmartThemeHoverColor, rgba(255, 255, 255, 0.1));
+    transform: translateX(4px);
+    box-shadow: -2px 2px 5px rgba(0,0,0,0.1);
 }
-#remove-ellipsis-settings .checkbox_label:last-child {
+
+/* Danger Option Styling */
+#remove-ellipsis-settings .rm-setting-item.danger {
+    background: rgba(220, 53, 69, 0.1);
+    border: 1px dashed rgba(220, 53, 69, 0.4);
+}
+
+#remove-ellipsis-settings .rm-setting-item.danger:hover {
+    background: rgba(220, 53, 69, 0.15);
+    border: 1px solid rgba(220, 53, 69, 0.6);
+}
+
+#remove-ellipsis-settings .rm-setting-item .checkbox_label {
     margin-bottom: 0;
-}
-#remove-ellipsis-settings .checkbox_label input[type="checkbox"] {
-    margin-right: 10px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.95em;
     cursor: pointer;
 }
 
-/* Action Buttons Container */
-#remove-ellipsis-settings .rm-actions {
+#remove-ellipsis-settings .rm-setting-item input[type="checkbox"] {
+    cursor: pointer;
+    transform: scale(1.1);
+}
+
+/* Action Buttons */
+#remove-ellipsis-settings .rm-button-group {
     display: flex;
     gap: 10px;
-    margin-top: 5px;
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
 }
 
-/* Button Styling Enhancements */
-#remove-ellipsis-settings .menu_button {
+#remove-ellipsis-settings .rm-btn {
     flex: 1;
-    padding: 10px;
-    cursor: pointer;
-    border-radius: 5px;
-    color: #fff;
-    font-weight: bold;
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    transition: all 0.2s ease;
-    border: 1px solid transparent;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    cursor: pointer;
+    font-size: 0.9em;
 }
 
+/* Gradient Primary Button */
 #remove-ellipsis-settings .rm-btn-primary {
-    background-color: rgba(40, 167, 69, 0.3) !important;
-    border-color: rgba(40, 167, 69, 0.6) !important;
-}
-#remove-ellipsis-settings .rm-btn-primary:hover {
-    background-color: rgba(40, 167, 69, 0.5) !important;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    background: linear-gradient(135deg, #6366f1, #3b82f6);
+    color: white !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
-#remove-ellipsis-settings .rm-btn-secondary {
-    background-color: rgba(23, 162, 184, 0.3) !important;
-    border-color: rgba(23, 162, 184, 0.6) !important;
+#remove-ellipsis-settings .rm-btn-primary:hover {
+    background: linear-gradient(135deg, #4f46e5, #2563eb);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.2);
+    filter: brightness(1.1);
 }
+
+#remove-ellipsis-settings .rm-btn-primary:active {
+    transform: translateY(0);
+}
+
+/* Standard Secondary Button */
+#remove-ellipsis-settings .rm-btn-secondary {
+    background: var(--SmartThemeButtonColor, rgba(255, 255, 255, 0.1));
+    color: var(--SmartThemeBodyColor, #fff);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.2));
+}
+
 #remove-ellipsis-settings .rm-btn-secondary:hover {
-    background-color: rgba(23, 162, 184, 0.5) !important;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    background: var(--SmartThemeHoverColor, rgba(255, 255, 255, 0.15));
+    border-color: var(--SmartThemeBodyColor, #fff);
+    transform: translateY(-2px);
 }
