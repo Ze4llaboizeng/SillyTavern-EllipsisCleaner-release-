@@ -1,9 +1,9 @@
-/* Remove Ellipsis - Extension Styling */
+/* Remove Ellipsis - Extension Styling (Redesigned) */
 
 #remove-ellipsis-settings {
-    margin-top: 5px;
-    border-top: 1px solid var(--SmartThemeBorderColor);
-    padding-top: 5px;
+    margin-top: 10px;
+    border-top: 1px solid var(--SmartThemeBorderColor, #444);
+    padding-top: 10px;
     width: 100%;
 }
 
@@ -13,22 +13,30 @@
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
-    padding: 10px;
-    background-color: rgba(0, 0, 0, 0.2);
-    border-radius: 5px;
-    transition: background-color 0.2s;
+    padding: 12px 15px;
+    background-color: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.3));
+    border: 1px solid var(--SmartThemeBorderColor, #555);
+    border-radius: 6px;
+    transition: all 0.2s ease-in-out;
     user-select: none;
     color: var(--SmartThemeBodyColor, #e0e0e0);
     font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 #remove-ellipsis-settings .rm-settings-header:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--SmartThemeButtonHoverColor, rgba(255, 255, 255, 0.1));
+    border-color: var(--SmartThemeBodyColor, #888);
+}
+
+#remove-ellipsis-settings .rm-label i {
+    margin-right: 8px;
+    opacity: 0.8;
 }
 
 /* Rotating Icon */
 #remove-ellipsis-settings .rm-icon {
-    transition: transform 0.2s;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 #remove-ellipsis-settings .rm-icon.down {
     transform: rotate(180deg);
@@ -37,38 +45,117 @@
 /* Drawer Content */
 #remove-ellipsis-settings .rm-settings-content {
     background-color: rgba(0, 0, 0, 0.15);
-    border-radius: 0 0 5px 5px;
-    padding: 10px;
-    margin-top: 2px;
+    border-radius: 0 0 6px 6px;
+    padding: 15px 10px 10px 10px;
+    margin-top: -4px;
     color: var(--SmartThemeBodyColor, #ccc);
+    border: 1px solid var(--SmartThemeBorderColor, #555);
+    border-top: none;
 }
 
-/* Labels */
+/* Category Sections */
+#remove-ellipsis-settings .rm-section {
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+
+#remove-ellipsis-settings .rm-section-title {
+    font-size: 0.85em;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: var(--SmartThemeBodyColor, #aaa);
+    opacity: 0.8;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.5px;
+}
+
+/* Danger Zone (For remove all dots) */
+#remove-ellipsis-settings .rm-danger-zone {
+    background-color: rgba(255, 60, 60, 0.1);
+    border-left: 3px solid #ff4444;
+    padding: 8px;
+    border-radius: 0 4px 4px 0;
+    margin-top: 8px;
+    transition: background-color 0.2s;
+}
+#remove-ellipsis-settings .rm-danger-zone:hover {
+    background-color: rgba(255, 60, 60, 0.15);
+}
+#remove-ellipsis-settings .rm-danger-zone span {
+    color: #ff8888;
+    font-weight: 600;
+}
+#remove-ellipsis-settings .rm-danger-zone i {
+    margin-right: 4px;
+}
+
+/* Labels & Checkboxes */
 #remove-ellipsis-settings .checkbox_label {
     display: flex;
     align-items: center;
     margin-bottom: 8px;
     cursor: pointer;
-    font-size: 0.9em;
+    font-size: 0.95em;
+    transition: opacity 0.2s;
 }
-
-#remove-ellipsis-settings .checkbox_label input {
+#remove-ellipsis-settings .checkbox_label:hover {
+    opacity: 0.8;
+}
+#remove-ellipsis-settings .checkbox_label:last-child {
+    margin-bottom: 0;
+}
+#remove-ellipsis-settings .checkbox_label input[type="checkbox"] {
     margin-right: 10px;
+    cursor: pointer;
 }
 
-/* Buttons */
+/* Action Buttons Container */
+#remove-ellipsis-settings .rm-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+/* Button Styling Enhancements */
 #remove-ellipsis-settings .menu_button {
     flex: 1;
-    padding: 8px;
+    padding: 10px;
     cursor: pointer;
-    background-color: var(--SmartThemeButtonColor, #444);
-    border: 1px solid var(--SmartThemeBorderColor, #666);
-    border-radius: 4px;
-    color: var(--SmartThemeBodyColor, #fff);
+    border-radius: 5px;
+    color: #fff;
     font-weight: bold;
-    transition: filter 0.2s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
 }
 
-#remove-ellipsis-settings .menu_button:hover {
-    filter: brightness(1.2);
+#remove-ellipsis-settings .rm-btn-primary {
+    background-color: rgba(40, 167, 69, 0.3) !important;
+    border-color: rgba(40, 167, 69, 0.6) !important;
+}
+#remove-ellipsis-settings .rm-btn-primary:hover {
+    background-color: rgba(40, 167, 69, 0.5) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+#remove-ellipsis-settings .rm-btn-secondary {
+    background-color: rgba(23, 162, 184, 0.3) !important;
+    border-color: rgba(23, 162, 184, 0.6) !important;
+}
+#remove-ellipsis-settings .rm-btn-secondary:hover {
+    background-color: rgba(23, 162, 184, 0.5) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
