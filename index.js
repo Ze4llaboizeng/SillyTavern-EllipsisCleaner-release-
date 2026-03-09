@@ -1,4 +1,4 @@
-/* Remove Ellipsis — UI Redesigned */
+/* Remove Ellipsis — Added Notification Toggle */
 (() => {
     if (typeof window === 'undefined') { global.window = {}; }
     if (window.__REMOVE_ELLIPSIS_EXT_LOADED__) return;
@@ -13,7 +13,7 @@
         removeAllDots: false, 
         preserveSpace: true,
         protectCode: true,
-        notifications: true
+        notifications: true // New default
     };
 
     // ========================================================================
@@ -55,12 +55,22 @@
                     processed = processed.replace(regex, m => `@@PT${protectedItems.push(m) - 1}@@`);
                 };
 
+                // 1. Markdown
                 mask(/```[\s\S]*?```/g);
                 mask(/`[^`]*`/g);
+
+                // 2. Technical Blocks
                 mask(/<script\b[^>]*>[\s\S]*?<\/script>/gi);
                 mask(/<style\b[^>]*>[\s\S]*?<\/style>/gi);
                 mask(/<pre\b[^>]*>[\s\S]*?<\/pre>/gi);
                 mask(/<code\b[^>]*>[\s\S]*?<\/code>/gi);
+
+                // 3. Structural Blocks
+                //mask(/<p\b[^>]*>[\s\S]*?<\/p>/gi);
+                //mask(/<div\b[^>]*>[\s\S]*?<\/div>/gi);
+                //mask(/<span\b[^>]*>[\s\S]*?<\/span>/gi);
+
+                // 4. Attributes
                 mask(/<[^>]+>/g);
             }
 
@@ -127,7 +137,9 @@
     // ========================================================================
     const UI = {
         notify(msg, type = 'info') {
+            // Check setting before showing toast
             if (!Core.getSettings().notifications) return; 
+
             if (typeof toastr !== 'undefined' && toastr[type]) toastr[type](msg, 'Ellipsis Cleaner');
             else console.log(`[EllipsisCleaner] ${msg}`);
         },
@@ -206,6 +218,7 @@
             ctx.chat.forEach(msg => {
                 if (typeof msg.mes === 'string') count += Cleaner.cleanText(msg.mes, st).removed;
             });
+            // Force notification for manual check even if disabled globally
             if (st.notifications) UI.notify(count > 0 ? `Found ${count} dots.` : 'No dots found.', 'info');
             else if (typeof toastr !== 'undefined') toastr.info(count > 0 ? `Found ${count} dots.` : 'No dots found.', 'Check Result');
         },
@@ -215,67 +228,68 @@
             const container = $('#extensions_settings');
             if (!container.length || $('#remove-ellipsis-settings').length) return;
 
-            // --- REDESIGNED UI HTML ---
+            // Redesigned HTML with standard SillyTavern structure & chic UI
             const html = `
             <div id="remove-ellipsis-settings" class="extension_settings_block">
-                <div class="rm-settings-drawer">
-                    <div class="rm-settings-header" title="Click to open/close">
-                        <span class="rm-label"><i class="fa-solid fa-eraser"></i> Ellipsis Cleaner</span>
-                        <div class="rm-icon fa-solid fa-circle-chevron-down"></div>
+                <div class="inline-drawer">
+                    <div class="inline-drawer-toggle inline-drawer-header rm-drawer-toggle" title="คลิกเพื่อเปิด/ปิดหน้าต่างตั้งค่า">
+                        <b><i class="fa-solid fa-comment-dots" style="margin-right: 5px; color: #a5b4fc;"></i> Ellipsis Cleaner</b>
+                        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down"></div>
                     </div>
-                    
-                    <div class="rm-settings-content" style="display:none;">
-                        
-                        <!-- Operation Modes -->
-                        <div class="rm-section">
-                            <div class="rm-section-title"><i class="fa-solid fa-gears"></i> Operation (การทำงาน)</div>
-                            <label class="checkbox_label">
-                                <input type="checkbox" id="rm-ell-auto" />
-                                <span>Auto Remove (ลบอัตโนมัติ)</span>
-                            </label>
+                    <div class="inline-drawer-content" style="display:none;">
+                        <div class="rm-settings-container">
                             
-                            <label class="checkbox_label">
-                                <input type="checkbox" id="rm-ell-twodots" />
-                                <span>Remove ".." (ลบจุดคู่)</span>
+                            <label class="rm-setting-item">
+                                <div class="checkbox_label">
+                                    <input type="checkbox" id="rm-ell-auto" />
+                                    <span><i class="fa-solid fa-robot fa-fw" style="opacity: 0.7;"></i> Auto Remove</span>
+                                </div>
                             </label>
-                            
-                            <div class="rm-danger-zone" title="DANGER: Removes every single dot '.'">
-                                <label class="checkbox_label">
+
+                            <label class="rm-setting-item danger" title="อันตราย: ตัวเลือกนี้จะลบจุด (.) ทุกตัวในข้อความ!">
+                                <div class="checkbox_label">
                                     <input type="checkbox" id="rm-ell-all" />
-                                    <span><i class="fa-solid fa-triangle-exclamation"></i> Remove ALL Dots (.)</span>
-                                </label>
+                                    <span style="color: #ffaaaa; font-weight: bold;"><i class="fa-solid fa-triangle-exclamation fa-fw"></i> Remove ALL Dots (.)</span>
+                                </div>
+                            </label>
+                            
+                            <label class="rm-setting-item">
+                                <div class="checkbox_label">
+                                    <input type="checkbox" id="rm-ell-twodots" />
+                                    <span><i class="fa-solid fa-ellipsis fa-fw" style="opacity: 0.7;"></i> Remove ".."</span>
+                                </div>
+                            </label>
+                            
+                            <label class="rm-setting-item">
+                                <div class="checkbox_label">
+                                    <input type="checkbox" id="rm-ell-protect" />
+                                    <span><i class="fa-solid fa-shield-halved fa-fw" style="opacity: 0.7;"></i> Protect Code & HTML</span>
+                                </div>
+                            </label>
+
+                            <label class="rm-setting-item">
+                                <div class="checkbox_label">
+                                    <input type="checkbox" id="rm-ell-space" />
+                                    <span><i class="fa-solid fa-arrows-left-right fa-fw" style="opacity: 0.7;"></i> Preserve Space</span>
+                                </div>
+                            </label>
+
+                            <label class="rm-setting-item" title="แสดงแจ้งเตือนเมื่อทำการลบจุด">
+                                <div class="checkbox_label">
+                                    <input type="checkbox" id="rm-ell-notify" />
+                                    <span><i class="fa-solid fa-bell fa-fw" style="opacity: 0.7;"></i> Show Notifications</span>
+                                </div>
+                            </label>
+
+                            <div class="rm-button-group">
+                                <button id="rm-ell-btn-clean" class="menu_button rm-btn rm-btn-primary" title="ลบจุดไข่ปลาในแชทปัจจุบันทันที">
+                                    <i class="fa-solid fa-broom"></i> Clean Now
+                                </button>
+                                <button id="rm-ell-btn-check" class="menu_button rm-btn rm-btn-secondary" title="ตรวจสอบว่ามีจุดไข่ปลาอยู่กี่จุด">
+                                    <i class="fa-solid fa-magnifying-glass"></i> Check
+                                </button>
                             </div>
                         </div>
-
-                        <!-- Options -->
-                        <div class="rm-section">
-                            <div class="rm-section-title"><i class="fa-solid fa-sliders"></i> Options (ตัวเลือก)</div>
-                            <label class="checkbox_label">
-                                <input type="checkbox" id="rm-ell-protect" />
-                                <span>Protect Code & HTML (กันโค้ดพัง)</span>
-                            </label>
-
-                            <label class="checkbox_label">
-                                <input type="checkbox" id="rm-ell-space" />
-                                <span>Preserve Space (คงช่องว่าง)</span>
-                            </label>
-
-                            <label class="checkbox_label" title="Show toast notifications when cleaning">
-                                <input type="checkbox" id="rm-ell-notify" />
-                                <span>Notifications (แจ้งเตือน)</span>
-                            </label>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div class="rm-actions">
-                            <button id="rm-ell-btn-clean" class="menu_button rm-btn-primary">
-                                <i class="fa-solid fa-broom"></i> Clean Now
-                            </button>
-                            <button id="rm-ell-btn-check" class="menu_button rm-btn-secondary">
-                                <i class="fa-solid fa-magnifying-glass"></i> Check
-                            </button>
-                        </div>
-
                     </div>
                 </div>
             </div>`;
@@ -295,15 +309,16 @@
             if (this._eventsBound) return;
             this._eventsBound = true;
 
-            $(document).on('click', '#remove-ellipsis-settings .rm-settings-header', function(e) {
+            // Updated drawer toggle event logic to match ST structure
+            $(document).on('click', '#remove-ellipsis-settings .rm-drawer-toggle', function(e) {
                 e.preventDefault();
-                const content = $(this).next('.rm-settings-content');
-                const icon = $(this).find('.rm-icon');
+                const content = $(this).siblings('.inline-drawer-content');
+                const icon = $(this).find('.inline-drawer-icon');
                 if (content.is(':visible')) {
-                    content.slideUp(200);
+                    content.slideUp(150);
                     icon.removeClass('down');
                 } else {
-                    content.slideDown(200);
+                    content.slideDown(150);
                     icon.addClass('down');
                 }
             });
@@ -328,6 +343,7 @@
                 UI.notify(`Code Protection: ${e.target.checked ? 'ON' : 'OFF'}`);
             });
             
+            // Notification Toggle Event
             $(document).on('change', '#rm-ell-notify', (e) => {
                 updateSetting('notifications', e.target.checked);
                 if(e.target.checked) UI.notify('Notifications Enabled', 'success');
