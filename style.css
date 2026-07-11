@@ -1,5 +1,414 @@
+/* ============================================================
+   Remove Ellipsis Extension — Stylesheet
+   ============================================================ */
+
+/* CSS variable for button size — change once, applies everywhere */
+:root {
+    --rm-ell-btn-size: 32px;
+    --rm-ell-btn-size-mobile: 30px;
+}
+
 #remove-ellipsis-settings {
     width: 100%;
     margin-top: 10px;
     margin-bottom: 10px;
+}
+
+/* ============================================================
+   QUICK BUTTON — Option D: square icon + dot badge
+   ============================================================ */
+#rm-ell-quick-btn-wrapper {
+    position: relative;
+    /* บางธีมตั้ง display/visibility กับลูกของ #send_form ทำให้ปุ่มหาย
+       จึงบังคับให้แสดงผลเสมอด้วย !important */
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    flex: 0 0 auto;
+    /* บังคับขนาดขั้นต่ำกันธีมบีบ wrapper จนยุบเหลือ 0 */
+    height: var(--rm-ell-btn-size);
+    min-height: var(--rm-ell-btn-size);
+    min-width: var(--rm-ell-btn-size);
+    vertical-align: middle;
+    overflow: visible;
+    pointer-events: auto;
+    /* เว้นระยะจากปุ่มส่ง */
+    margin: 0 10px 0 4px;
+}
+
+
+#rm-ell-quick-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+
+    width: var(--rm-ell-btn-size);
+    height: var(--rm-ell-btn-size);
+    min-width: var(--rm-ell-btn-size);
+    min-height: var(--rm-ell-btn-size);
+    flex: 0 0 var(--rm-ell-btn-size);
+
+    padding: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted, rgba(128,128,128,0.85));
+    border: 1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.25));
+    box-shadow: none;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    overflow: visible; /* dot badge ต้องโผล่ออกนอกขอบ */
+}
+
+#rm-ell-quick-btn i {
+    font-size: 15px;
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* Emoji icon variant */
+#rm-ell-quick-btn .rm-ell-quick-emoji {
+    font-size: 16px;
+    line-height: 1;
+    pointer-events: none;
+    /* keep emoji full-color regardless of theme text color */
+    filter: none;
+}
+
+
+#rm-ell-quick-btn:hover {
+    background: var(--white30a, rgba(128,128,128,0.1));
+    color: var(--text-main, inherit);
+    border-color: var(--SmartThemeBorderColor, rgba(128,128,128,0.45));
+}
+
+#rm-ell-quick-btn:active {
+    transform: scale(0.93);
+}
+
+/* Auto active — เปลี่ยนสีตัวไอคอนให้รู้ว่า on แต่ไม่ใช้ ring */
+#rm-ell-quick-btn.rm-ell-auto-active {
+    color: var(--green-50, #3c8d51);
+    border-color: var(--green-50, #3c8d51);
+    background: transparent;
+}
+
+/* Long press feedback */
+#rm-ell-quick-btn.rm-ell-pressing {
+    background: var(--white30a, rgba(128,128,128,0.12));
+    transform: scale(0.93);
+}
+
+/* ── Dot badge ── */
+.rm-ell-auto-dot {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green-50, #3c8d51);
+    /* fallback chain: ST dark bg → ST body bg → generic dark */
+    border: 2px solid var(--chat-tint-color, var(--main-text-color, var(--grey-800, #1e1e1e)));
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ============================================================
+   POPUP MENU
+   ============================================================ */
+.rm-ell-popup-menu {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 10px);
+    right: 0;
+    min-width: 230px;
+    max-width: calc(100vw - 24px);
+    background: var(--SmartThemeBlurTintColor, #1f2226);
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    border: 1px solid var(--SmartThemeBorderColor, #3a3f47);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    padding: 6px;
+    z-index: 10000;
+    font-size: 13px;
+    line-height: 1.4;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: rmEllPopupIn 0.15s ease-out;
+}
+
+.rm-ell-popup-menu.show {
+    display: block;
+}
+
+@keyframes rmEllPopupIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.rm-ell-popup-header {
+    padding: 8px 12px;
+    font-weight: bold;
+    color: var(--SmartThemeQuoteColor, #8ab4f8);
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #3a3f47);
+    margin-bottom: 4px;
+    font-size: 1em;
+    white-space: nowrap;
+}
+
+.rm-ell-popup-header i {
+    margin-right: 6px;
+}
+
+.rm-ell-popup-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    gap: 10px;
+    font-size: 1em;
+    white-space: nowrap;
+}
+
+.rm-ell-popup-item:hover {
+    background: var(--blackA40, rgba(255, 255, 255, 0.08));
+}
+
+.rm-ell-popup-item i {
+    margin-right: 6px;
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.rm-ell-popup-divider {
+    height: 1px;
+    background: var(--SmartThemeBorderColor, #3a3f47);
+    margin: 4px 6px;
+    opacity: 0.5;
+}
+
+.rm-ell-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.rm-ell-toggle-status {
+    font-size: 0.78em;
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 10px;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.rm-ell-toggle-status.on  { background: var(--green-50, #3c8d51); color: #fff; }
+.rm-ell-toggle-status.off { background: var(--grey-50, #555);     color: #ccc; }
+
+/* ============================================================
+   PER-MESSAGE CLEAN BUTTON
+   ============================================================ */
+.rm-ell-msg-clean-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    cursor: pointer;
+    color: var(--text-main, #aaa);
+}
+
+.rm-ell-msg-clean-btn:hover {
+    color: var(--SmartThemeQuoteColor, #8ab4f8);
+}
+
+.mes:hover .rm-ell-msg-clean-btn,
+.mes.selected .rm-ell-msg-clean-btn {
+    opacity: 1;
+}
+
+/* ============================================================
+   HEADER STATUS BADGE
+   ============================================================ */
+.rm-ell-header-status {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 0.7em;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+}
+
+.rm-ell-header-status.on  { background: var(--green-50, #3c8d51); color: #fff; }
+.rm-ell-header-status.off { background: var(--grey-50, #555);     color: #ccc; }
+
+/* ============================================================
+   SETTINGS PANEL
+   ============================================================ */
+#remove-ellipsis-settings .styled_description_block {
+    margin-bottom: 0.9rem;
+    color: var(--SmartThemeQuoteColor, #7b838b);
+    font-size: 0.9em;
+    padding: 0 5px;
+}
+
+#remove-ellipsis-settings hr {
+    margin: 10px 0;
+    border: none;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #d1d6dc);
+    opacity: 0.5;
+}
+
+/* Depth input row */
+.rm-ell-depth-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 4px;
+    flex-wrap: wrap;
+}
+
+.rm-ell-depth-label {
+    font-size: 0.9em;
+    color: var(--SmartThemeBodyColor, inherit);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    cursor: help;
+}
+
+.rm-ell-depth-label i {
+    font-size: 0.95em;
+    opacity: 0.7;
+}
+
+.rm-ell-input-cleanDepth {
+    width: 64px !important;
+    text-align: center;
+    flex: 0 0 auto;
+}
+
+.rm-ell-depth-hint {
+    font-size: 0.78em;
+    color: var(--SmartThemeQuoteColor, #7b838b);
+    flex: 0 0 auto;
+}
+
+
+.menu_button.rm-ell-btn-disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Highlight on scroll-to */
+#remove-ellipsis-settings.rm-ell-highlight > .inline-drawer {
+    animation: rmEllHighlight 1.5s ease;
+    border-radius: 8px;
+}
+
+@keyframes rmEllHighlight {
+    0%   { box-shadow: 0 0 0 0   var(--SmartThemeQuoteColor, #4a90e2); }
+    30%  { box-shadow: 0 0 0 4px var(--SmartThemeQuoteColor, #4a90e2); }
+    100% { box-shadow: 0 0 0 0   rgba(74, 144, 226, 0); }
+}
+
+/* ============================================================
+   Responsive: Tablet
+   ============================================================ */
+@media (max-width: 900px) {
+    .rm-ell-popup-menu {
+        font-size: 14px;
+        min-width: 240px;
+    }
+    .rm-ell-popup-item {
+        padding: 9px 12px;
+    }
+}
+
+/* ============================================================
+   Responsive: Mobile
+   ============================================================ */
+@media (max-width: 600px) {
+    :root {
+        --rm-ell-btn-size: var(--rm-ell-btn-size-mobile);
+    }
+
+    #rm-ell-quick-btn-wrapper {
+        margin: 0 8px 0 2px;
+    }
+
+    #rm-ell-quick-btn i {
+        font-size: 14px;
+    }
+
+    #rm-ell-quick-btn .rm-ell-quick-emoji {
+        font-size: 15px;
+    }
+
+    .rm-ell-auto-dot {
+        width: 7px;
+        height: 7px;
+        top: -2px;
+        right: -2px;
+    }
+
+    .rm-ell-popup-menu {
+        font-size: 15px;
+        min-width: 220px;
+        max-width: calc(100vw - 20px);
+        right: 0;
+        padding: 5px;
+    }
+
+    .rm-ell-popup-header {
+        padding: 9px 12px;
+        font-size: 1em;
+    }
+
+    .rm-ell-popup-item {
+        padding: 11px 12px;
+        gap: 8px;
+    }
+
+    .rm-ell-popup-item i {
+        width: 18px;
+        font-size: 0.95em;
+    }
+
+    .rm-ell-toggle-status {
+        font-size: 0.72em;
+        padding: 3px 8px;
+    }
+}
+
+/* ============================================================
+   Responsive: Small mobile (< 380px)
+   ============================================================ */
+@media (max-width: 380px) {
+    .rm-ell-popup-menu {
+        font-size: 14px;
+        min-width: 190px;
+    }
+    .rm-ell-popup-item {
+        padding: 10px;
+    }
 }
