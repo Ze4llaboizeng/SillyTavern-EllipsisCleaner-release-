@@ -501,47 +501,136 @@
             else sendForm.append(wrapper);
 
             // --- Long press logic ---
-            const LONG_PRESS_MS = 500;
+            // NOTE: Do NOT pass `{ passive: true }` as jQuery `.on()` 3rd arg.
+            // jQuery treats that arg as event data / handler and breaks touchstart
+            // on mobile (desktop mousedown still worked, so only phones failed).
+            const LONG_PRESS_MS = 450;
+            const MOVE_CANCEL_PX = 12;
             const btnEl = document.getElementById('rm-ell-quick-btn');
             let pressTimer = null;
             let longPressFired = false;
             let pressActive = false;
+            let pressPointerType = null; // 'touch' | 'mouse'
+            let startX = 0;
+            let startY = 0;
+            let suppressOutsideCloseUntil = 0;
+            let ignoreMouseUntil = 0; // swallow ghost mouse events after touch
 
-            const clearTimer = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+            const clearTimer = () => {
+                if (pressTimer) {
+                    clearTimeout(pressTimer);
+                    pressTimer = null;
+                }
+            };
 
-            const startPress = (e) => {
-                if (e.type === 'mousedown' && e.button !== 0) return;
+            const openPopupFromLongPress = () => {
+                longPressFired = true;
+                btnEl?.classList.remove('rm-ell-pressing');
+                // Keep outside-close from eating the synthetic click that follows
+                // a long-press on mobile browsers.
+                suppressOutsideCloseUntil = Date.now() + 450;
+                UI.updatePopupMenuState();
+                $('#rm-ell-popup-menu').addClass('show');
+                if (navigator.vibrate) {
+                    try { navigator.vibrate(15); } catch (_) {}
+                }
+            };
+
+            const startPress = (e, pointerType) => {
+                // After a real touch, browsers also emit ghost mouse events —
+                // ignore those so we don't restart/cancel the long-press.
+                if (pointerType === 'mouse' && Date.now() < ignoreMouseUntil) return;
+                if (pointerType === 'mouse' && e.button != null && e.button !== 0) return;
+                // Don't stack a second press while one is active
+                if (pressActive) return;
+
                 pressActive = true;
+                pressPointerType = pointerType;
                 longPressFired = false;
                 btnEl?.classList.add('rm-ell-pressing');
+
+                if (pointerType === 'touch' && e.touches && e.touches[0]) {
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+                } else {
+                    startX = e.clientX ?? 0;
+                    startY = e.clientY ?? 0;
+                }
+
                 clearTimer();
-                pressTimer = setTimeout(() => {
-                    longPressFired = true;
-                    btnEl?.classList.remove('rm-ell-pressing');
-                    UI.togglePopupMenu();
-                    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
-                }, LONG_PRESS_MS);
+                pressTimer = setTimeout(openPopupFromLongPress, LONG_PRESS_MS);
             };
 
             const endPress = (e, cancelled = false) => {
                 if (!pressActive) return;
+                const wasTouch = pressPointerType === 'touch';
                 pressActive = false;
+                pressPointerType = null;
                 clearTimer();
                 btnEl?.classList.remove('rm-ell-pressing');
-                if (cancelled || longPressFired) return;
-                if (e) { try { e.preventDefault(); e.stopPropagation(); } catch (_) {} }
+
+                if (wasTouch) {
+                    // Block the synthetic mousedown/mouseup/click sequence
+                    ignoreMouseUntil = Date.now() + 700;
+                }
+
+                if (cancelled || longPressFired) {
+                    // Stop the follow-up click from also firing clean / closing menu
+                    if (e) {
+                        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+                    }
+                    return;
+                }
+
+                if (e) {
+                    try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+                }
                 App.removeAll();
             };
 
-            $('#rm-ell-quick-btn')
-                .on('mousedown',  e => startPress(e))
-                .on('mouseup',    e => endPress(e))
-                .on('mouseleave', () => endPress(null, true))
-                .on('touchstart', e => startPress(e), { passive: true })
-                .on('touchend',   e => endPress(e))
-                .on('touchcancel',() => endPress(null, true))
-                .on('contextmenu', e => { e.preventDefault(); return false; })
-                .on('click',      e => { e.preventDefault(); e.stopPropagation(); });
+            const onTouchMove = (e) => {
+                if (!pressActive || pressPointerType !== 'touch' || !e.touches?.[0]) return;
+                const dx = e.touches[0].clientX - startX;
+                const dy = e.touches[0].clientY - startY;
+                if ((dx * dx + dy * dy) > (MOVE_CANCEL_PX * MOVE_CANCEL_PX)) {
+                    endPress(null, true);
+                }
+            };
+
+            // Prefer native listeners for touch — reliable passive/options + no jQuery arg pitfalls
+            if (btnEl) {
+                btnEl.addEventListener('touchstart', (e) => {
+                    // Single-finger only
+                    if (e.touches && e.touches.length > 1) {
+                        endPress(null, true);
+                        return;
+                    }
+                    startPress(e, 'touch');
+                }, { passive: true });
+
+                btnEl.addEventListener('touchmove', onTouchMove, { passive: true });
+
+                btnEl.addEventListener('touchend', (e) => {
+                    endPress(e, false);
+                }, { passive: false });
+
+                btnEl.addEventListener('touchcancel', () => {
+                    endPress(null, true);
+                }, { passive: true });
+
+                btnEl.addEventListener('mousedown', (e) => startPress(e, 'mouse'));
+                btnEl.addEventListener('mouseup', (e) => endPress(e, false));
+                btnEl.addEventListener('mouseleave', () => endPress(null, true));
+                btnEl.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+                // Swallow click always — short tap is handled in touchend/mouseup
+                btnEl.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            }
 
             // Popup action buttons
             $('#rm-ell-popup-clean').on('click', async (e) => {
@@ -569,12 +658,16 @@
                 App.toggleSetting(key);
             });
 
-            // Close popup on outside click
-            $(document).on('click.rmellpopup', (e) => {
-                if (!$(e.target).closest('#rm-ell-quick-btn-wrapper').length) {
-                    UI.hidePopupMenu();
-                }
-            });
+            // Close popup on outside click / tap
+            // (skip briefly after long-press open — mobile synthetic click would re-close it)
+            $(document)
+                .off('click.rmellpopup pointerdown.rmellpopup')
+                .on('click.rmellpopup pointerdown.rmellpopup', (e) => {
+                    if (Date.now() < suppressOutsideCloseUntil) return;
+                    if (!$(e.target).closest('#rm-ell-quick-btn-wrapper').length) {
+                        UI.hidePopupMenu();
+                    }
+                });
 
             this.updateQuickButtonState();
             this.updateUndoButtons();
