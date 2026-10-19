@@ -38,7 +38,7 @@
             key: 'cleanDepth',
             type: 'number',
             default: 1,
-            min: 1,
+            min: 0,
             max: 999,
             label: 'Auto Clean Depth',
             icon: 'fa-solid fa-layer-group',
@@ -94,6 +94,9 @@
             inPopup: false,
             title: 'แสดงแจ้งเตือนเมื่อทำการลบ'
         },
+        // Custom entries are literal text, never user-supplied regular expressions.
+        { key: 'customEnabled', default: true, label: 'Clean custom text', icon: 'fa-solid fa-list', inPopup: true },
+        { key: 'customText', type: 'text', default: '', label: 'Custom text' },
     ];
 
     // Build DEFAULTS from schema
@@ -109,7 +112,7 @@
 
         getSettings() {
             const ctx = this.getContext();
-            if (!ctx) return structuredClone(DEFAULTS);
+            if (!ctx) return { ...DEFAULTS };
             const store = ctx.extensionSettings || (ctx.extensionSettings = {});
             if (!store[MODULE_NAME]) store[MODULE_NAME] = {};
             // Fill missing keys from defaults
@@ -155,6 +158,9 @@
     // MODULE: Cleaner
     // ========================================================================
     const Cleaner = {
+        _patternKey: null,
+        _patterns: null,
+
         /**
          * Clean a single string.
          * @returns {{ text: string, removed: number }}
@@ -162,87 +168,55 @@
         cleanText(text, settings) {
             if (typeof text !== 'string' || !text) return { text, removed: 0 };
 
-            const protectedItems = [];
-            let processed = text;
-            let removedCount = 0;
-
-            // --- Always protect <think> blocks regardless of protectCode setting ---
-            // mask ทั้งก้อนก่อนเสมอ เพราะเนื้อหาใน think ไม่ควรถูกแตะ
-            processed = processed.replace(
-                /<think\b[^>]*>[\s\S]*?<\/think>/gi,
-                m => `@@PT${protectedItems.push(m) - 1}@@`
-            );
-
-            // --- Protect code/HTML blocks ---
-            if (settings.protectCode) {
-                const mask = (regex) => {
-                    processed = processed.replace(
-                        regex,
-                        m => `@@PT${protectedItems.push(m) - 1}@@`
-                    );
+            const customText = settings.customEnabled !== false && typeof settings.customText === 'string'
+                ? settings.customText : '';
+            const patternKey = JSON.stringify([settings.removeAllDots, settings.treatTwoDots, customText]);
+            if (patternKey !== this._patternKey) {
+                const literals = [...new Set(customText.split(/\r?\n/).map(line => line.trim()).filter(Boolean))]
+                    .sort((a, b) => b.length - a.length)
+                    .map(value => value.replace(/[.*+?^$()|[\]{}\\]/g, '\\$&'));
+                const dots = settings.removeAllDots ? '\\.+' : settings.treatTwoDots ? '\\.{2,}' : '\\.{3,}';
+                const pattern = '(?:' + [...literals, dots, '…'].join('|') + ')';
+                this._patterns = {
+                    before: new RegExp('(?<=[*"\\\'])' + pattern + '[ \\t]*', 'g'),
+                    after: new RegExp(pattern + '[ \\t]*(?=[*"\\\'])', 'g'),
+                    main: new RegExp(pattern, 'g'),
+                    compact: new RegExp(pattern + '[ \\t]*', 'g'),
                 };
-                mask(/```[\s\S]*?```/g);
-                mask(/`[^`]*`/g);
-                mask(/<script\b[^>]*>[\s\S]*?<\/script>/gi);
-                mask(/<style\b[^>]*>[\s\S]*?<\/style>/gi);
-                mask(/<pre\b[^>]*>[\s\S]*?<\/pre>/gi);
-                mask(/<code\b[^>]*>[\s\S]*?<\/code>/gi);
-                // <think> ถูก mask ไปแล้วข้างบน ไม่ต้อง mask ซ้ำ
-                mask(/<[^>]+>/g);
+                this._patternKey = patternKey;
             }
-
-            // --- Remove English in parentheses after Thai ---
-            if (settings.removeEngParens) {
-                // Improved: allow optional space/punctuation between Thai and paren
-                // e.g. แชท(chat), แชท (chat), แชท — (chat), แชท: (chat)
-                const engParenRegex = /([\u0E00-\u0E7F][*_"']*)\s*(?:[^\w\s\u0E00-\u0E7F]{0,3}\s*)(\([^)]*[A-Za-z][^)]*\))/g;
-                processed = processed.replace(engParenRegex, (match, thaiPart, parenPart) => {
-                    removedCount++;  // count brackets removed, not characters
-                    return thaiPart;
+            const patterns = this._patterns;
+            let removed = 0;
+            const clean = (part, before, after) => {
+                if (settings.removeEngParens) {
+                    part = part.replace(/([\u0E00-\u0E7F][*_"']*)(\s*(?:[^\w\s\u0E00-\u0E7F]{0,3}\s*))(\([^)]*[A-Za-z][^)]*\))/g,
+                        (_, thai, separator) => { removed++; return thai + separator.trimEnd(); });
+                }
+                part = part
+                    .replace(patterns.before, () => { removed++; return ''; })
+                    .replace(patterns.after, () => { removed++; return ''; });
+                return part.replace(settings.preserveSpace ? patterns.main : patterns.compact, (match, offset, full) => {
+                    removed++;
+                    if (!settings.preserveSpace) return '';
+                    const prev = full[offset - 1] ?? before;
+                    const next = full[offset + match.length] ?? after;
+                    return prev === undefined || next === undefined || /\s/.test(prev) || /\s/.test(next) ? '' : ' ';
                 });
+            };
+
+            // Clean unprotected spans so custom text cannot damage placeholders.
+            // Unclosed reasoning/code blocks stay protected through the end.
+            const protectedRx = settings.protectCode
+                ? /<think\b[^>]*>[\s\S]*?(?:<\/think>|$)|```[\s\S]*?(?:```|$)|`[^`]*(?:`|$)|<(script|style|pre|code)\b[^>]*>[\s\S]*?(?:<\/\1>|$)|<[^>]+>/gi
+                : /<think\b[^>]*>[\s\S]*?(?:<\/think>|$)/gi;
+            let result = '';
+            let cursor = 0;
+            for (const match of text.matchAll(protectedRx)) {
+                result += clean(text.slice(cursor, match.index), text[cursor - 1], text[match.index]) + match[0];
+                cursor = match.index + match[0].length;
             }
-
-            // --- Build ellipsis pattern ---
-            let patternSource;
-            if (settings.removeAllDots) {
-                patternSource = '\\.+|…';
-            } else if (settings.treatTwoDots) {
-                patternSource = '(?<!\\d)\\.{2,}(?!\\d)|…';
-            } else {
-                patternSource = '(?<!\\d)\\.{3,}(?!\\d)|…';
-            }
-
-            const baseRegex = new RegExp(patternSource, 'g');
-
-            // Handle ellipsis adjacent to markdown markers (* " ')
-            const specialAfterRx  = new RegExp(`(?:${patternSource})[ \\t]*(?=[*"'])`, 'g');
-            const specialBeforeRx = new RegExp(`(?<=[*"'])(?:${patternSource})[ \\t]*`, 'g');
-
-            processed = processed
-                .replace(specialBeforeRx, m => { removedCount++; return ''; })
-                .replace(specialAfterRx,  m => { removedCount++; return ''; });
-
-            // Main replacement
-            const mainRegex = settings.preserveSpace
-                ? baseRegex
-                : new RegExp(`(?:${patternSource})[ \\t]*`, 'g');
-
-            processed = processed.replace(mainRegex, (match, offset, fullStr) => {
-                removedCount++;
-                if (!settings.preserveSpace) return '';
-                const prev = fullStr[offset - 1];
-                const next = fullStr[offset + match.length];
-                const hasSpaceBefore = prev === undefined || /\s/.test(prev);
-                const hasSpaceAfter  = next === undefined || /\s/.test(next);
-                return (hasSpaceBefore || hasSpaceAfter) ? '' : ' ';
-            });
-
-            // Restore protected items
-            if (settings.protectCode) {
-                processed = processed.replace(/@@PT(\d+)@@/g, (_, i) => protectedItems[+i]);
-            }
-
-            return { text: processed, removed: removedCount };
+            result += clean(text.slice(cursor), text[cursor - 1]);
+            return { text: result, removed };
         },
 
         /**
@@ -261,7 +235,7 @@
 
             if (msg.extra && typeof msg.extra.display_text === 'string') {
                 const r = this.cleanText(msg.extra.display_text, settings);
-                if (r.removed > 0) { msg.extra.display_text = r.text; }
+                if (r.removed > 0) { msg.extra.display_text = r.text; total += r.removed; }
             }
 
             return total;
@@ -274,8 +248,9 @@
             settings = settings || Core.getSettings();
             let count = 0;
             for (const msg of chat) {
-                if (typeof msg.mes === 'string') {
-                    count += this.cleanText(msg.mes, settings).removed;
+                if (typeof msg.mes === 'string') count += this.cleanText(msg.mes, settings).removed;
+                if (typeof msg.extra?.display_text === 'string') {
+                    count += this.cleanText(msg.extra.display_text, settings).removed;
                 }
             }
             return count;
@@ -304,6 +279,10 @@
 
             // Drawer checkboxes
             for (const def of SETTINGS_SCHEMA) {
+                if (def.type === 'number' || def.type === 'text') {
+                    $(`.rm-ell-input-${def.key}`).val(st[def.key]);
+                    continue;
+                }
                 $(`.rm-ell-input-${def.key}`).each((_, el) => {
                     if (el.checked !== st[def.key]) el.checked = st[def.key];
                 });
@@ -332,6 +311,7 @@
                 const statusEl = $(`#rm-ell-popup-${def.key} .rm-ell-toggle-status`);
                 if (!statusEl.length) continue;
                 const val = !!st[def.key];
+                $(`#rm-ell-popup-${def.key}`).attr('aria-pressed', String(val));
                 statusEl.text(val ? 'ON' : 'OFF').removeClass('on off').addClass(val ? 'on' : 'off');
             }
         },
@@ -350,13 +330,13 @@
                 badge.id = 'rm-ell-header-status';
                 header.appendChild(badge);
             }
-            badge.textContent = text;
+            if (badge.textContent !== text) badge.textContent = text;
             badge.className = `rm-ell-header-status ${cls}`;
         },
 
         updateUndoButtons() {
             const can = UndoStack.canUndo();
-            $('.rm-ell-btn-undo').toggleClass('rm-ell-btn-disabled', !can);
+            $('.rm-ell-btn-undo, #rm-ell-popup-undo').toggleClass('rm-ell-btn-disabled', !can).prop('disabled', !can);
         },
 
         // ----------------------------------------------------------------
@@ -367,11 +347,14 @@
             popup.hasClass('show') ? this.hidePopupMenu() : (() => {
                 this.updatePopupMenuState();
                 popup.addClass('show');
+                $('#rm-ell-quick-btn').attr('aria-expanded', 'true');
+                popup.find('button:enabled').first().trigger('focus');
             })();
         },
 
         hidePopupMenu() {
             $('#rm-ell-popup-menu').removeClass('show');
+            $('#rm-ell-quick-btn').attr('aria-expanded', 'false');
         },
 
         // ----------------------------------------------------------------
@@ -383,34 +366,34 @@
             const popupItems = SETTINGS_SCHEMA.filter(d => d.inPopup).map(def => {
                 const val = !!st[def.key];
                 return `
-                    <div class="rm-ell-popup-item rm-ell-popup-toggle" id="rm-ell-popup-${def.key}" data-key="${def.key}">
+                    <button type="button" class="rm-ell-popup-item rm-ell-popup-toggle" id="rm-ell-popup-${def.key}" data-key="${def.key}">
                         <span class="rm-ell-toggle-label">
                             <i class="${def.icon}"></i> ${def.label}
                         </span>
                         <span class="rm-ell-toggle-status ${val ? 'on' : 'off'}">${val ? 'ON' : 'OFF'}</span>
-                    </div>`;
+                    </button>`;
             }).join('');
 
             return `
                 <div id="rm-ell-quick-btn-wrapper" class="rm-ell-quick-btn-wrapper">
-                    <div id="rm-ell-quick-btn" class="rm-ell-quick-btn" role="button"
-                         aria-label="Text Cleaner: tap to clean, hold for options">
+                    <button id="rm-ell-quick-btn" class="rm-ell-quick-btn" type="button"
+                         aria-label="Text Cleaner options" aria-expanded="false" aria-controls="rm-ell-popup-menu">
                         <span class="rm-ell-quick-emoji" aria-hidden="true">🧹</span>
                         <span id="rm-ell-auto-dot" class="rm-ell-auto-dot" style="${dotVisible}"></span>
-                    </div>
+                    </button>
                     <div id="rm-ell-popup-menu" class="rm-ell-popup-menu">
                         <div class="rm-ell-popup-header">
                             <span class="rm-ell-quick-emoji">🧹</span> Text Cleaner
                         </div>
-                        <div class="rm-ell-popup-item" id="rm-ell-popup-clean">
+                        <button type="button" class="rm-ell-popup-item" id="rm-ell-popup-clean">
                             <i class="fa-solid fa-wand-magic-sparkles"></i> Clean Now
-                        </div>
-                        <div class="rm-ell-popup-item" id="rm-ell-popup-undo" data-undo>
+                        </button>
+                        <button type="button" class="rm-ell-popup-item" id="rm-ell-popup-undo" data-undo>
                             <i class="fa-solid fa-rotate-left"></i> Undo
-                        </div>
-                        <div class="rm-ell-popup-item" id="rm-ell-popup-check">
+                        </button>
+                        <button type="button" class="rm-ell-popup-item" id="rm-ell-popup-check">
                             <i class="fa-solid fa-magnifying-glass"></i> Check
-                        </div>
+                        </button>
                         <div class="rm-ell-popup-divider"></div>
                         ${popupItems}
                     </div>
@@ -423,25 +406,26 @@
         buildSettingsPanelHtml() {
             const st = Core.getSettings();
 
-            // Group: first two (auto + engparens) are "primary", rest are "advanced"
-            const primary  = SETTINGS_SCHEMA.filter(d =>  d.inPopup);
-            const advanced = SETTINGS_SCHEMA.filter(d => !d.inPopup);
+            // Keep rules separate from the options shared by every cleaning action.
+            const primary = SETTINGS_SCHEMA.filter(d => d.key === 'autoRemove');
+            const rules = SETTINGS_SCHEMA.filter(d => ['removeEngParens', 'removeAllDots', 'treatTwoDots', 'customEnabled'].includes(d.key));
+            const advanced = SETTINGS_SCHEMA.filter(d => ['protectCode', 'preserveSpace', 'notifications'].includes(d.key));
 
             const makeCheckbox = (def) => {
-                const labelStyle = def.highlight ? 'color:var(--smart-blue);' : '';
-                const labelWeight = def.highlight ? 'font-weight:bold;' : '';
                 return `
                     <label class="checkbox_label" ${def.title ? `title="${def.title}"` : ''}>
                         <input type="checkbox"
                                class="rm-ell-input-${def.key}"
                                id="drawer-rm-ell-${def.key}"
                                ${st[def.key] ? 'checked' : ''} />
-                        <span style="${labelStyle}${labelWeight}">${def.label}</span>
+                        <span>${def.label}</span>
                     </label>`;
             };
 
             return `
-                <div class="styled_description_block">Extension by Zealllll</div>
+                <p class="rm-ell-intro">Clean repeated punctuation and unwanted text with one shared set of options.</p>
+                <div class="rm-ell-section">
+                <h4>Automatic cleaning</h4>
 
                 ${primary.map(makeCheckbox).join('')}
 
@@ -457,24 +441,37 @@
                     <span class="rm-ell-depth-hint">messages (0 = all)</span>
                 </div>
 
-                <hr style="margin: 10px 0; border-color: var(--grey-60); opacity: 0.5;">
+                </div>
+                <div class="rm-ell-section">
+                    <h4>What to clean</h4>
+                    <p class="rm-ell-hint">Always removes <code>...</code> and <code>…</code>.</p>
+                    ${rules.map(makeCheckbox).join('')}
+                    <label for="drawer-rm-ell-customText">Additional text · one item per line</label>
+                    <textarea id="drawer-rm-ell-customText" class="rm-ell-input-customText text_pole" rows="4"
+                        placeholder=". . .&#10;⋯&#10;—" aria-describedby="rm-ell-custom-hint">${String(st.customText ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+                    <p id="rm-ell-custom-hint" class="rm-ell-hint">Exact, case-sensitive matches. Blank lines are ignored. All entries use the shared options below.</p>
+                </div>
+                <details class="rm-ell-section">
+                    <summary>Shared options</summary>
 
                 ${advanced.map(makeCheckbox).join('')}
+                </details>
 
-                <div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;">
-                    <div class="rm-ell-btn-clean menu_button" style="flex: 1; min-width: 90px;"
+                <div class="rm-ell-actions">
+                    <button type="button" class="rm-ell-btn-clean menu_button"
                          title="ลบสิ่งสกปรกในแชทปัจจุบันทันที">
                         <i class="fa-solid fa-wand-magic-sparkles"></i> Clean Now
-                    </div>
-                    <div class="rm-ell-btn-undo menu_button rm-ell-btn-disabled" style="flex: 1; min-width: 80px;"
+                    </button>
+                    <button type="button" class="rm-ell-btn-undo menu_button rm-ell-btn-disabled" disabled
                          title="เลิกทำการลบครั้งล่าสุด">
                         <i class="fa-solid fa-rotate-left"></i> Undo
-                    </div>
-                    <div class="rm-ell-btn-check menu_button" style="flex: 1; min-width: 80px;"
+                    </button>
+                    <button type="button" class="rm-ell-btn-check menu_button"
                          title="ตรวจสอบจำนวนที่ต้องลบ">
                         <i class="fa-solid fa-magnifying-glass"></i> Check
-                    </div>
-                </div>`;
+                    </button>
+                </div>
+                <p class="rm-ell-hint">Clean Now and Check cover the entire chat. By Zealllll.</p>`;
         },
 
         // ----------------------------------------------------------------
@@ -500,137 +497,12 @@
             if (sendBut.length) sendBut.before(wrapper);
             else sendForm.append(wrapper);
 
-            // --- Long press logic ---
-            // NOTE: Do NOT pass `{ passive: true }` as jQuery `.on()` 3rd arg.
-            // jQuery treats that arg as event data / handler and breaks touchstart
-            // on mobile (desktop mousedown still worked, so only phones failed).
-            const LONG_PRESS_MS = 450;
-            const MOVE_CANCEL_PX = 12;
-            const btnEl = document.getElementById('rm-ell-quick-btn');
-            let pressTimer = null;
-            let longPressFired = false;
-            let pressActive = false;
-            let pressPointerType = null; // 'touch' | 'mouse'
-            let startX = 0;
-            let startY = 0;
-            let suppressOutsideCloseUntil = 0;
-            let ignoreMouseUntil = 0; // swallow ghost mouse events after touch
-
-            const clearTimer = () => {
-                if (pressTimer) {
-                    clearTimeout(pressTimer);
-                    pressTimer = null;
-                }
-            };
-
-            const openPopupFromLongPress = () => {
-                longPressFired = true;
-                btnEl?.classList.remove('rm-ell-pressing');
-                // Keep outside-close from eating the synthetic click that follows
-                // a long-press on mobile browsers.
-                suppressOutsideCloseUntil = Date.now() + 450;
-                UI.updatePopupMenuState();
-                $('#rm-ell-popup-menu').addClass('show');
-                if (navigator.vibrate) {
-                    try { navigator.vibrate(15); } catch (_) {}
-                }
-            };
-
-            const startPress = (e, pointerType) => {
-                // After a real touch, browsers also emit ghost mouse events —
-                // ignore those so we don't restart/cancel the long-press.
-                if (pointerType === 'mouse' && Date.now() < ignoreMouseUntil) return;
-                if (pointerType === 'mouse' && e.button != null && e.button !== 0) return;
-                // Don't stack a second press while one is active
-                if (pressActive) return;
-
-                pressActive = true;
-                pressPointerType = pointerType;
-                longPressFired = false;
-                btnEl?.classList.add('rm-ell-pressing');
-
-                if (pointerType === 'touch' && e.touches && e.touches[0]) {
-                    startX = e.touches[0].clientX;
-                    startY = e.touches[0].clientY;
-                } else {
-                    startX = e.clientX ?? 0;
-                    startY = e.clientY ?? 0;
-                }
-
-                clearTimer();
-                pressTimer = setTimeout(openPopupFromLongPress, LONG_PRESS_MS);
-            };
-
-            const endPress = (e, cancelled = false) => {
-                if (!pressActive) return;
-                const wasTouch = pressPointerType === 'touch';
-                pressActive = false;
-                pressPointerType = null;
-                clearTimer();
-                btnEl?.classList.remove('rm-ell-pressing');
-
-                if (wasTouch) {
-                    // Block the synthetic mousedown/mouseup/click sequence
-                    ignoreMouseUntil = Date.now() + 700;
-                }
-
-                if (cancelled || longPressFired) {
-                    // Stop the follow-up click from also firing clean / closing menu
-                    if (e) {
-                        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-                    }
-                    return;
-                }
-
-                if (e) {
-                    try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-                }
-                App.removeAll();
-            };
-
-            const onTouchMove = (e) => {
-                if (!pressActive || pressPointerType !== 'touch' || !e.touches?.[0]) return;
-                const dx = e.touches[0].clientX - startX;
-                const dy = e.touches[0].clientY - startY;
-                if ((dx * dx + dy * dy) > (MOVE_CANCEL_PX * MOVE_CANCEL_PX)) {
-                    endPress(null, true);
-                }
-            };
-
-            // Prefer native listeners for touch — reliable passive/options + no jQuery arg pitfalls
-            if (btnEl) {
-                btnEl.addEventListener('touchstart', (e) => {
-                    // Single-finger only
-                    if (e.touches && e.touches.length > 1) {
-                        endPress(null, true);
-                        return;
-                    }
-                    startPress(e, 'touch');
-                }, { passive: true });
-
-                btnEl.addEventListener('touchmove', onTouchMove, { passive: true });
-
-                btnEl.addEventListener('touchend', (e) => {
-                    endPress(e, false);
-                }, { passive: false });
-
-                btnEl.addEventListener('touchcancel', () => {
-                    endPress(null, true);
-                }, { passive: true });
-
-                btnEl.addEventListener('mousedown', (e) => startPress(e, 'mouse'));
-                btnEl.addEventListener('mouseup', (e) => endPress(e, false));
-                btnEl.addEventListener('mouseleave', () => endPress(null, true));
-                btnEl.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                });
-                // Swallow click always — short tap is handled in touchend/mouseup
-                btnEl.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                });
-            }
+            // A normal click works on touch, mouse, and keyboard.
+            $('#rm-ell-quick-btn').on('click contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.togglePopupMenu();
+            });
 
             // Popup action buttons
             $('#rm-ell-popup-clean').on('click', async (e) => {
@@ -651,24 +523,6 @@
                 await App.checkAll();
             });
 
-            // Popup toggle buttons (generated from schema)
-            $(document).on('click', '.rm-ell-popup-toggle[data-key]', function(e) {
-                e.stopPropagation();
-                const key = $(this).data('key');
-                App.toggleSetting(key);
-            });
-
-            // Close popup on outside click / tap
-            // (skip briefly after long-press open — mobile synthetic click would re-close it)
-            $(document)
-                .off('click.rmellpopup pointerdown.rmellpopup')
-                .on('click.rmellpopup pointerdown.rmellpopup', (e) => {
-                    if (Date.now() < suppressOutsideCloseUntil) return;
-                    if (!$(e.target).closest('#rm-ell-quick-btn-wrapper').length) {
-                        UI.hidePopupMenu();
-                    }
-                });
-
             this.updateQuickButtonState();
             this.updateUndoButtons();
         },
@@ -686,7 +540,7 @@
                 <div id="remove-ellipsis-settings" class="extension_settings_block">
                     <div class="inline-drawer">
                         <div class="inline-drawer-toggle inline-drawer-header">
-                            <b><span class="rm-ell-quick-emoji">🧹</span> Text Cleaner Ext</b>
+                            <b><span class="rm-ell-quick-emoji">🧹</span> Text Cleaner</b>
                             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down"></div>
                         </div>
                         <div class="inline-drawer-content rm-ell-panel-body" style="display:none;">
@@ -703,6 +557,7 @@
     // ========================================================================
     const App = {
         _removeAllRunning: false,  // Lock against concurrent removeAll calls
+        _autoRemoveSource: null,
 
         // ----------------------------------------------------------------
         // Unified toggle — single function handles both drawer + popup
@@ -721,7 +576,7 @@
         // ----------------------------------------------------------------
         // Remove all — with undo snapshot + concurrency lock
         // ----------------------------------------------------------------
-        async removeAll(silent = false) {
+        async removeAll(silent = false, depth = 0) {
             if (this._removeAllRunning) return;
             this._removeAllRunning = true;
 
@@ -731,22 +586,22 @@
 
                 const settings = Core.getSettings();
 
-                // Save snapshot for undo (deep clone only modified messages)
-                const snapshot = ctx.chat.map(msg => ({
-                    mes: msg.mes,
-                    extra_display: msg.extra?.display_text
-                }));
+                const snapshot = {};
 
                 let count = 0;
                 const updatedIndexes = [];
 
-                ctx.chat.forEach((msg, index) => {
+                const start = depth > 0 ? Math.max(0, ctx.chat.length - depth) : 0;
+                for (let index = start; index < ctx.chat.length; index++) {
+                    const msg = ctx.chat[index];
+                    const previous = { mes: msg.mes, extra_display: msg.extra?.display_text };
                     const removed = Cleaner.cleanMessage(msg, settings);
                     if (removed > 0) {
+                        snapshot[index] = previous;
                         count += removed;
                         updatedIndexes.push(index);
                     }
-                });
+                }
 
                 if (updatedIndexes.length > 0) {
                     UndoStack.push({ snapshot, indexes: updatedIndexes });
@@ -775,11 +630,11 @@
         // Undo last removeAll
         // ----------------------------------------------------------------
         async undo() {
-            const entry = UndoStack.pop();
-            if (!entry) { UI.notify('Nothing to undo.', 'info'); return; }
-
             const ctx = Core.getContext();
             if (!ctx?.chat) return;
+
+            const entry = UndoStack.pop();
+            if (!entry) { UI.notify('Nothing to undo.', 'info'); return; }
 
             entry.indexes.forEach(index => {
                 const msg = ctx.chat[index];
@@ -852,7 +707,7 @@
 
             // Settings drawer checkboxes — generated from schema
             for (const def of SETTINGS_SCHEMA) {
-                if (def.type === 'number') continue; // handle separately below
+                if (def.type) continue; // non-boolean settings are handled below
                 $(document).on('change', `.rm-ell-input-${def.key}`, (e) => {
                     const st = Core.getSettings();
                     st[def.key] = e.target.checked;
@@ -862,8 +717,20 @@
                 });
             }
 
+            $(document).on('change', '.rm-ell-input-customText', (e) => {
+                Core.getSettings().customText = e.target.value;
+                Core.saveSettings();
+            });
+
+            $(document).on('keydown.rmellpopup', (e) => {
+                if (e.key === 'Escape' && $('#rm-ell-popup-menu').hasClass('show')) {
+                    UI.hidePopupMenu();
+                    $('#rm-ell-quick-btn').trigger('focus');
+                }
+            });
+
             // cleanDepth number input
-            $(document).on('change input', '.rm-ell-input-cleanDepth', (e) => {
+            $(document).on('change', '.rm-ell-input-cleanDepth', (e) => {
                 const raw = parseInt(e.target.value, 10);
                 const schema = SETTINGS_SCHEMA.find(d => d.key === 'cleanDepth');
                 const val = isNaN(raw)
@@ -899,6 +766,31 @@
                 const index = parseInt($(e.currentTarget).closest('.mes').attr('mesid'), 10);
                 if (!isNaN(index)) await App.cleanSingleMessage(index);
             });
+
+            $(document).on('click', '.rm-ell-popup-toggle[data-key]', function(e) {
+                e.stopPropagation();
+                App.toggleSetting($(this).data('key'));
+            });
+
+            $(document).on('click.rmellpopup', (e) => {
+                if (!$(e.target).closest('#rm-ell-quick-btn-wrapper').length) UI.hidePopupMenu();
+            });
+        },
+
+        bindAutoRemove() {
+            const ctx = Core.getContext();
+            if (!ctx?.eventSource || ctx.eventSource === this._autoRemoveSource) return;
+            this._autoRemoveSource = ctx.eventSource;
+            if (ctx.event_types.CHAT_CHANGED) {
+                ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, () => {
+                    UndoStack.clear();
+                    UI.updateUndoButtons();
+                });
+            }
+            ctx.eventSource.on(ctx.event_types.MESSAGE_RECEIVED, async () => {
+                const st = Core.getSettings();
+                if (st.autoRemove) await App.removeRecent(st.cleanDepth);
+            });
         },
 
         // ----------------------------------------------------------------
@@ -929,58 +821,15 @@
         // depth = 0 หมายถึงทั้งหมด (fallback to removeAll)
         // ----------------------------------------------------------------
         async removeRecent(depth) {
-            if (this._removeAllRunning) return;
-            if (!depth || depth <= 0) { await this.removeAll(true); return; }
-
-            this._removeAllRunning = true;
-            try {
-                const ctx = Core.getContext();
-                if (!ctx?.chat) return;
-
-                const settings = Core.getSettings();
-                const chat = ctx.chat;
-                const startIndex = Math.max(0, chat.length - depth);
-
-                const snapshot = {};
-                let count = 0;
-                const updatedIndexes = [];
-
-                for (let i = startIndex; i < chat.length; i++) {
-                    const msg = chat[i];
-                    snapshot[i] = { mes: msg.mes, extra_display: msg.extra?.display_text };
-                    const removed = Cleaner.cleanMessage(msg, settings);
-                    if (removed > 0) {
-                        count += removed;
-                        updatedIndexes.push(i);
-                    }
-                }
-
-                if (updatedIndexes.length > 0) {
-                    UndoStack.push({ snapshot, indexes: updatedIndexes });
-                    updatedIndexes.forEach(i => this._updateMessageBlock(ctx, i));
-                    await ctx.saveChat?.();
-                }
-
-                UI.updateUndoButtons();
-            } finally {
-                this._removeAllRunning = false;
-            }
+            await this.removeAll(true, depth);
         },
 
         // ----------------------------------------------------------------
         // Init
         // ----------------------------------------------------------------
         init() {
-            const ctx = Core.getContext();
             this.bindEvents();
-
-            // Auto-remove on new message — ใช้ depth แทน removeAll ทั้งหมด
-            if (ctx?.eventSource) {
-                ctx.eventSource.on(ctx.event_types.MESSAGE_RECEIVED, async () => {
-                    const st = Core.getSettings();
-                    if (st.autoRemove) await App.removeRecent(st.cleanDepth);
-                });
-            }
+            this.bindAutoRemove();
 
             UI.injectSettings();
             UI.injectQuickButton();
@@ -1010,6 +859,7 @@
                     // wrappers) and bails out cheaply when exactly one exists.
                     UI.injectQuickButton();
                     App.injectMessageButtons();
+                    App.bindAutoRemove();
 
                     UI.updateDrawerHeaderStatus();
                 } catch (err) {
@@ -1019,7 +869,14 @@
                 }
             };
 
-            const scheduleCheck = () => {
+            const scheduleCheck = (records) => {
+                // Text streaming and our own controls do not require another chat scan.
+                if (!records.some(record => [...record.addedNodes].some(node =>
+                    node.nodeType === 1 && (
+                        node.matches('.mes, .mes_buttons, .extraMesButtons, #send_form, #send_but, #extensions_settings') ||
+                        node.querySelector('.mes, .mes_buttons, .extraMesButtons, #send_form, #send_but, #extensions_settings')
+                    )
+                ))) return;
                 clearTimeout(debounceTimer);
                 debounceTimer = setTimeout(runChecks, 150);
             };
